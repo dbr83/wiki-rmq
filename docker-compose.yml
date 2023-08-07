@@ -1,0 +1,58 @@
+version: '3.8'
+
+x-client-common-variables: &client-common-variables
+  RABBITMQ_HOST: rabbitmq-server
+  RABBITMQ_QUEUE: wiki-events-queue
+  RABBITMQ_ROUTING_KEY: wiki-events-key
+  RABBITMQ_EXCHANGE: wiki-events-exchange
+
+services:
+  rabbitmq-server:
+    container_name: rabbitmq-server
+    image: "rabbitmq:3.10-management-alpine"
+#    hostname: "rabbitmq-host"
+    networks:
+      - wiki-rmq
+
+  wiki-events-producer:
+    container_name: wiki-events-producer
+    build:
+      context: ./wiki-events-producer
+      dockerfile: Dockerfile
+    depends_on:
+      - rabbitmq-server
+      - consumer
+    environment:
+      <<: *client-common-variables
+      CSV_FILE: /de_challenge_sample_data.csv
+    volumes:
+      - ./de_challenge_sample_data.csv:/de_challenge_sample_data.csv
+    deploy:
+      restart_policy:
+        condition: on-failure
+    networks:
+      - wiki-rmq
+    restart: always
+
+  consumer:
+    container_name: wiki-events-consumer
+    build:
+      context: ./wiki-events-consumer
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      - rabbitmq-server
+    environment:
+      <<: *client-common-variables
+      OUTPUT_FILE: /tmp/output.txt
+    volumes:
+      - ./output:/tmp
+    deploy:
+      restart_policy:
+        condition: on-failure
+    networks:
+      - wiki-rmq
+
+networks:
+  wiki-rmq:
+    driver: bridge
